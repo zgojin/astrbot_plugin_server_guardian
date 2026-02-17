@@ -28,6 +28,8 @@
     2.  **生成应用密码**: 访问 [Google App Passwords](https://myaccount.google.com/apppasswords)。
     3.  **创建项**: 选择“其他”，命名为 `AstrBot`，点击生成。
     4.  **填入代码**: 将生成的 **16位字母代码** 复制并填入插件配置的 `smtp_pass`。
+
+### 2. 其它邮箱例如@163 请自行搜索对应SMTP服务
 ---
 
 ## 如果你是docker容器部署 内存监控以及清理可能无法正常使用或无法获取全部信息
