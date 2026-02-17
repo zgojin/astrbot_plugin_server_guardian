@@ -1,0 +1,35 @@
+{
+    "enable": {
+        "type": "bool",
+        "description": "开启监控",
+        "default": true
+    },
+    "check_interval": {
+        "type": "int",
+        "description": "检测间隔(秒)",
+        "default": 60
+    },
+    "smtp_host": {
+        "type": "string",
+        "description": "SMTP服务器",
+        "default": "smtp.qq.com"
+    },
+    "smtp_port": {
+        "type": "int",
+        "description": "SMTP端口(SSL)",
+        "default": 465
+    },
+    "smtp_user": {
+        "type": "string",
+        "description": "发件人邮箱"
+    },
+    "smtp_pass": {
+        "type": "string",
+        "description": "邮箱授权码",
+        "obvious_hint": true
+    },
+    "receiver_email": {
+        "type": "string",
+        "description": "收件人邮箱"
+    }
+}
