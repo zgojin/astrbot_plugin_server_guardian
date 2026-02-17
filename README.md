@@ -21,10 +21,13 @@
 * **SMTP 服务器**: `smtp.qq.com` | **端口**: `465` (需开启 TLS)
 * **授权码获取**: 登录 [QQ邮箱网页版](https://mail.qq.com/) -> **设置** -> **账号** -> 下拉 找到 **POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务** 开启并获取 **授权码**。
 
-### 2. Gmail
+### 2. Gmail (谷歌邮箱)
 * **SMTP 服务器**: `smtp.gmail.com` | **端口**: `465`
-* **授权码获取**: 开启谷歌账号 **两步验证** -> 生成 **App Passwords**。
-
+* **详细步骤**:
+    1.  **开启两步验证**: 必须先在谷歌账号安全设置中开启“两步验证”。
+    2.  **生成应用密码**: 访问 [Google App Passwords](https://myaccount.google.com/apppasswords)。
+    3.  **创建项**: 选择“其他”，命名为 `AstrBot`，点击生成。
+    4.  **填入代码**: 将生成的 **16位字母代码** 复制并填入插件配置的 `smtp_pass`。
 ---
 
 ## 如果你是docker容器部署 内存监控以及清理可能无法正常使用或无法获取全部信息
