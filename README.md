@@ -19,7 +19,7 @@
 
 ### 1. QQ 邮箱
 * **SMTP 服务器**: `smtp.qq.com` | **端口**: `465` (需开启 TLS)
-* **授权码获取**: 登录 [QQ邮箱网页版](https://mail.qq.com/) -> **设置** -> **账号** -> 生成 **授权码**。
+* **授权码获取**: 登录 [QQ邮箱网页版](https://mail.qq.com/) -> **设置** -> **账号** -> 下拉 找到 **POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务** 开启并获取 **授权码**。
 
 ### 2. Gmail
 * **SMTP 服务器**: `smtp.gmail.com` | **端口**: `465`
