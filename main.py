@@ -7,37 +7,35 @@ from email.mime.text import MIMEText
 from email.header import Header
 import aiosmtplib
 
+from astrbot.api.event import filter, AstrMessageEvent, PermissionType
 from astrbot.api.star import Context, Star, register
 from astrbot.api import AstrBotConfig, logger
-from astrbot.api.event import AstrMessageEvent
-import astrbot.api.event.filter as filter
 
-@register("astrbot_plugin_server_guardian", "长安某", "服务器管家与掉线报警", "1.0.0")
+@register("astrbot_plugin_server_guardian", "长安某", "AstrBot 服务监控", "1.0.0")
 class OfflineAlarmPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
         self.is_running = True
-        self.alarm_status = {} # 记录各适配器是否已报过警 {name: bool}
+        self.alarm_status = {}
         
         if self.config.get("enable", True):
-            asyncio.create_task(self.monitor_loop())
+            asyncio.create_task(self.monitor_loop()) [cite: 38]
 
-    @filter.command("status", alias=["状态", "占用", "服务器"])
-    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("status", alias={'状态', '占用', '服务器'}) [cite: 8]
+    @filter.permission_type(PermissionType.ADMIN) [cite: 10]
     async def check_server_status(self, event: AstrMessageEvent):
-        """查询 CPU/内存 占用最高的进程"""
+        yield event.plain_result("正在采样系统数据...")
         try:
-            report = await asyncio.to_thread(self._get_system_snapshot)
+            report = await asyncio.to_thread(self._get_system_snapshot) [cite: 40]
             yield event.plain_result(report)
         except Exception as e:
-            logger.error(f"查询失败: {e}")
+            logger.error(f"查询失败: {e}", exc_info=True) [cite: 40]
             yield event.plain_result(f"查询失败: {e}")
 
-    @filter.command("clean", alias=["清理", "清理内存"])
-    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("clean", alias={'清理', '清理内存'}) [cite: 8]
+    @filter.permission_type(PermissionType.ADMIN) [cite: 10]
     async def clean_memory(self, event: AstrMessageEvent):
-        """释放系统缓存 (drop_caches)"""
         try:
             mem_before = psutil.virtual_memory().available
             os.system("sync && echo 3 > /proc/sys/vm/drop_caches")
@@ -50,10 +48,11 @@ class OfflineAlarmPlugin(Star):
                 "---------------------------",
                 f"释放空间: {self._fmt_bytes(max(0, released))}",
                 f"当前可用: {self._fmt_bytes(mem_after)}",
-                "\n*提示: 仅清理系统缓存，不影响运行中的进程。*"
+                "\n*提示: 仅清理系统缓存。*"
             ]
             yield event.plain_result("\n".join(msg))
         except Exception as e:
+            logger.error("清理内存失败", exc_info=True) [cite: 40]
             yield event.plain_result(f"清理失败: {e}")
 
     def _get_system_snapshot(self):
@@ -61,7 +60,6 @@ class OfflineAlarmPlugin(Star):
         boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
         uptime = str(datetime.datetime.now() - boot_time).split('.')[0]
         
-        # 第一次采样
         procs_map = {}
         for p in psutil.process_iter(['pid', 'name', 'memory_percent']):
             try:
@@ -69,9 +67,8 @@ class OfflineAlarmPlugin(Star):
                 procs_map[p.pid] = p
             except (psutil.NoSuchProcess, psutil.AccessDenied): continue
         
-        time.sleep(1.0) # 采样间隔
+        time.sleep(1.0) 
         
-        # 第二次采样
         proc_stats = []
         for pid, p in procs_map.items():
             try:
@@ -115,7 +112,7 @@ class OfflineAlarmPlugin(Star):
                 await asyncio.sleep(10)
 
     async def check_adapters(self):
-        platforms = self.context.platform_manager.get_insts()
+        platforms = self.context.platform_manager.get_insts() [cite: 39]
         if not platforms: return
         for platform in platforms:
             is_alive = True
@@ -133,20 +130,17 @@ class OfflineAlarmPlugin(Star):
                 if not getattr(platform, "client", None): is_alive = False
 
             if not is_alive:
-                # 掉线且未报过警
                 if not self.alarm_status.get(p_name, False):
                     if await self.trigger_alarm(p_name):
                         self.alarm_status[p_name] = True
             else:
-                # 重置适配器的报警状态
                 if self.alarm_status.get(p_name, False):
-                    logger.info(f"适配器 {p_name} 已恢复连接，重置报警状态")
                     self.alarm_status[p_name] = False
 
     async def trigger_alarm(self, name: str):
         logger.error(f"检测到 {name} 掉线，发送报警邮件...")
         subject = f"【AstrBot报警】{name} 连接断开"
-        content = f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n检测到适配器 [{name}] 连接断开，请检查服务连接状态。"
+        content = f"时间: {time.strftime('%Y-%m-%d %H:%M:%S')}\n检测到适配器 [{name}] 连接断开，请检查服务状态。"
         return await self.send_email(subject, content)
 
     async def send_email(self, subject, content):
@@ -158,9 +152,7 @@ class OfflineAlarmPlugin(Star):
         if not (host and user and pwd and to): return False
         
         msg = MIMEText(content, 'plain', 'utf-8')
-        msg['From'] = user
-        msg['To'] = to
-        msg['Subject'] = Header(subject, 'utf-8')
+        msg['From'], msg['To'], msg['Subject'] = user, to, Header(subject, 'utf-8')
         try:
             await aiosmtplib.send(msg, hostname=host, port=port, username=user, password=pwd, use_tls=True)
             return True
@@ -172,5 +164,5 @@ class OfflineAlarmPlugin(Star):
             num /= 1024.0
         return f"{num:.2f}TB"
 
-    async def terminate(self):
+    async def terminate(self): [cite: 2]
         self.is_running = False
