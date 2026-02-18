@@ -1,0 +1,6 @@
+name: astrbot_plugin_server_guardian
+display_name: AstrBot 服务监控
+desc: AstrBot 服务监控插件：掉线报警、服务器进程占用排行、一键释放内存。
+version: v1.0.0
+author: 长安某
+repo: https://github.com/zgojin/astrbot_plugin_server_guardian
