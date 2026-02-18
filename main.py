@@ -7,26 +7,25 @@ from email.mime.text import MIMEText
 from email.header import Header
 import aiosmtplib
 
-from astrbot.api.event import filter, AstrMessageEvent, PermissionType
+from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api import AstrBotConfig, logger
 
-@register("astrbot_plugin_server_guardian", "长安某", "AstrBot 服务监控", "1.0.1")
+@register("astrbot_plugin_server_guardian", "长安某", "AstrBot 服务监控", "1.0.0")
 class OfflineAlarmPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
         
-        # 生命周期管理
         self._monitor_task = None
-        self._stop_event = asyncio.Event() # 优雅退出
+        self._stop_event = asyncio.Event()
         self.alarm_status = {}
         
         if self.config.get("enable", True):
             self._monitor_task = asyncio.create_task(self.monitor_loop())
 
     @filter.command("status", alias={'状态', '占用', '服务器'})
-    @filter.permission_type(PermissionType.ADMIN)
+    @filter.permission_type(filter.PermissionType.ADMIN)
     async def check_server_status(self, event: AstrMessageEvent):
         """查询 CPU/内存 占用最高的进程"""
         yield event.plain_result("正在采样系统数据...")
@@ -34,23 +33,22 @@ class OfflineAlarmPlugin(Star):
             report = await asyncio.to_thread(self._get_system_snapshot)
             yield event.plain_result(report)
         except Exception as e:
-            # 记录完整堆栈
             logger.error(f"状态查询失败: {e}", exc_info=True)
             yield event.plain_result(f"查询失败: {e}")
 
     @filter.command("clean", alias={'清理', '清理内存'})
-    @filter.permission_type(PermissionType.ADMIN)
+    @filter.permission_type(filter.PermissionType.ADMIN)
     async def clean_memory(self, event: AstrMessageEvent):
         """释放系统缓存 (drop_caches)"""
         try:
             mem_before = psutil.virtual_memory().available
+            
             def _safe_clean():
                 try:
-                    # 需容器开启 --privileged 才能写入 /proc
                     with open("/proc/sys/vm/drop_caches", "w") as f:
                         f.write("3")
                         f.flush()
-                    os.sync() # 确保写入磁盘
+                    os.sync()
                     return True
                 except PermissionError:
                     return False
@@ -64,17 +62,15 @@ class OfflineAlarmPlugin(Star):
                 yield event.plain_result("清理失败: 权限不足 (请检查容器是否开启 --privileged)")
                 return
 
-            await asyncio.sleep(1.0) # 等待内核释放
+            await asyncio.sleep(1.0)
             
             mem_after = psutil.virtual_memory().available
             released = mem_after - mem_before
             
             msg = [
-                " **系统内存清理完成**",
-                "---------------------------",
-                f" 释放空间: {self._fmt_bytes(max(0, released))}",
-                f" 当前可用: {self._fmt_bytes(mem_after)}",
-                "\n*提示: 仅清理系统 Buffer/Cache。*"
+                "**系统内存清理完成**",
+                f"释放: {self._fmt_bytes(max(0, released))}",
+                f"可用: {self._fmt_bytes(mem_after)}"
             ]
             yield event.plain_result("\n".join(msg))
         except Exception as e:
@@ -94,9 +90,9 @@ class OfflineAlarmPlugin(Star):
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
             except Exception:
-                continue # 其他未预期的错误忽略，避免中断整个循环
+                continue
         
-        time.sleep(1.0) # 采样间隔
+        time.sleep(1.0) 
         
         proc_stats = []
         for pid, p in procs_map.items():
@@ -104,7 +100,6 @@ class OfflineAlarmPlugin(Star):
                 cpu_val = p.cpu_percent(interval=None)
                 mem_val = p.info['memory_percent']
                 
-                # name 可能为 None
                 p_name = p.info.get('name') or "unknown"
                 
                 if cpu_val > 0.1 or mem_val > 0.5:
@@ -123,17 +118,17 @@ class OfflineAlarmPlugin(Star):
         mem = psutil.virtual_memory()
 
         msg = [
-            " **服务器资源实时监控**",
-            f" 运行时长: {uptime}",
-            f" 核心数量: {cpu_count} 核",
-            f" 系统总 CPU: {sys_cpu}%",
-            f" 系统总内存: {mem.percent}% ({self._fmt_bytes(mem.used)}/{self._fmt_bytes(mem.total)})",
+            "**服务器资源实时监控**",
+            f"运行时长: {uptime}",
+            f"核心数量: {cpu_count} 核",
+            f"系统总 CPU: {sys_cpu}%",
+            f"系统总内存: {mem.percent}% ({self._fmt_bytes(mem.used)}/{self._fmt_bytes(mem.total)})",
             "---------------------------",
-            " **CPU 占用排行 (单核%)**"
+            "**CPU 占用排行 (单核%)**"
         ]
         for i, p in enumerate(top_cpu):
             msg.append(f"{i+1}. {p['name'][:15]} [{p['pid']}] : **{p['cpu']:.1f}%**")
-        msg.append("\n **内存 占用排行 (%)**")
+        msg.append("\n**内存 占用排行 (%)**")
         for i, p in enumerate(top_mem):
             msg.append(f"{i+1}. {p['name'][:15]} [{p['pid']}] : **{p['mem']:.1f}%**")
         return "\n".join(msg)
@@ -143,19 +138,18 @@ class OfflineAlarmPlugin(Star):
         while not self._stop_event.is_set():
             try:
                 interval = self.config.get("check_interval", 60)
-                # 收到停止信号立即响应
                 try:
                     await asyncio.wait_for(self._stop_event.wait(), timeout=interval)
-                    break 
+                    break
                 except asyncio.TimeoutError:
-                    pass 
+                    pass
 
                 if self._stop_event.is_set(): break
                 await self.check_adapters()
                 
             except Exception as e:
                 logger.error(f"监控循环异常: {e}", exc_info=True)
-                await asyncio.sleep(10) # 发生错误时保守等待
+                await asyncio.sleep(10)
 
     async def check_adapters(self):
         platforms = self.context.platform_manager.get_insts()
@@ -164,8 +158,6 @@ class OfflineAlarmPlugin(Star):
         for platform in platforms:
             is_alive = True
             p_name = getattr(platform, "platform_name", type(platform).__name__)
-            
-            # 平台名+对象ID 确保唯一性
             unique_key = f"{p_name}_{id(platform)}"
             
             class_name = type(platform).__name__
@@ -175,11 +167,9 @@ class OfflineAlarmPlugin(Star):
                 try:
                     client = platform.get_client()
                     if not client: raise Exception("Client缺失")
-                    # 主动调用确认连接
                     await asyncio.wait_for(client.api.call_action('get_status'), timeout=5)
                 except Exception: is_alive = False
             else:
-                # 尝试检查通常存在的 connected 属性
                 client = getattr(platform, "client", None)
                 if not client:
                     is_alive = False
@@ -213,6 +203,7 @@ class OfflineAlarmPlugin(Star):
         
         msg = MIMEText(content, 'plain', 'utf-8')
         msg['From'], msg['To'], msg['Subject'] = user, to, Header(subject, 'utf-8')
+        
         use_tls = True
         start_tls = False
         if port == 587:
@@ -241,7 +232,6 @@ class OfflineAlarmPlugin(Star):
         return f"{num:.2f}TB"
 
     async def terminate(self):
-        """插件卸载时的资源清理"""
         self.is_running = False
         self._stop_event.set()
         
